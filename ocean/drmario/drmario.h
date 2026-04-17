@@ -102,47 +102,38 @@ typedef struct {
 } DrMario;
 
 
-void c_init(DrMario *env)
-{
+void c_init(DrMario *env){
     env->grid=(int*)calloc(env->n_rows*env->n_cols,sizeof(int));
-    if(env->grid==NULL)
-    {
+    if(env->grid==NULL){
         exit(1);
     }
     env->stage=0;
 }
 
-void allocate(DrMario *env)
-{
+void allocate(DrMario *env){
     c_init(env);
     env->dim_obs = env->n_rows * env->n_cols * N_OBS_PLANES + N_SCALAR_OBS; 
     env->observations = (float *)calloc(env->dim_obs, sizeof(float));
-    if(env->observations == NULL)
-    {
+    if(env->observations == NULL){
         exit(1);
     }
     env->actions = (float *)calloc(1, sizeof(float));
-    if(env->actions == NULL)
-    {
+    if(env->actions == NULL){
         exit(1);
     }
     env->rewards = (float *)calloc(1, sizeof(float));
-    if(env->rewards == NULL)
-    {
+    if(env->rewards == NULL){
         exit(1);
     }
     env->terminals = (float *)calloc(1, sizeof(float));
-    if(env->terminals == NULL)
-    {
+    if(env->terminals == NULL){
         exit(1);
     }
 }
 
-void c_close(DrMario *env)
-{
+void c_close(DrMario *env){
     free(env->grid);
-    if(IsWindowReady())
-    {
+    if(IsWindowReady()){
        CloseWindow();
     }
 }
@@ -166,8 +157,7 @@ void add_log(DrMario *env) {
 }
 
 
-void compute_observations(DrMario *env)
-{
+void compute_observations(DrMario *env){
     int cells = env->n_rows * env->n_cols;
     
     float* plane_occupied = env->observations;
@@ -222,8 +212,9 @@ void place_viruses(DrMario *env) {
         int c = rand_r(&env->rng) % env->n_cols;
         int idx = r * env->n_cols + c;
         
-        if (env->grid[idx] != 0) continue;
-        
+        if (env->grid[idx] != 0){
+             continue;
+        }
         int color = (rand_r(&env->rng) % 3) + 1;
         env->grid[idx] = -color;
         placed++;
@@ -365,8 +356,7 @@ void rotate_cap(DrMario* env){
 
 void move_cap(DrMario* env){
     env->tick_fall += 1;
-    if(env->tick_fall >= env->ticks_per_fall)
-    {
+    if(env->tick_fall >= env->ticks_per_fall){
         env->tick_fall = 0;
         if(!env->cap_colliding_down) {
             env->cap_row_1 += 1;
@@ -589,7 +579,9 @@ void c_render(DrMario *env) {
             int cell = env->grid[r * env->n_cols + c];
             int x = c * SQUARE_SIZE;
             int y = r * SQUARE_SIZE;
-            if (cell == 0) continue;
+            if (cell == 0) {
+                continue;
+            }
 
             Color color;
             if      (cell == 1 || cell == -1) color = RED;
