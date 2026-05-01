@@ -11,18 +11,18 @@
 #define SCORE_HARD_DROP 0.0f
 #define SCORE_ROTATE 0.0f
 #define SCORE_KILL_VIRUS 1000.0f
-#define SCORE_PLACE_NEXT_TO_SAME_COLOR 10.0f
-#define SCORE_NO_LINE_CLEARS -10.0f
+#define SCORE_PLACE_NEXT_TO_SAME_COLOR 100.0f
+#define SCORE_NO_LINE_CLEARS 0.0f
 #define SCORE_CLEAR_LINE 500.0f
 
 #define REWARD_SOFT_DROP 0.0f
 #define REWARD_HARD_DROP 0.0f
 #define REWARD_ROTATE 0.0f
 #define REWARD_KILL_VIRUS 1.0f
-#define REWARD_PLACE_NEXT_TO_SAME_COLOR 0.01f
-#define REWARD_NO_LINE_CLEARS -0.01f
+#define REWARD_PLACE_NEXT_TO_SAME_COLOR 0.1f
+#define REWARD_NO_LINE_CLEARS 0.0f
 #define REWARD_CLEAR_LINE 0.5f
-#define REWARD_HEIGHT -0.02f
+#define REWARD_HEIGHT 0.0f
 
 #define ROTATION_0 0
 #define ROTATION_90 1
@@ -95,6 +95,9 @@ typedef struct {
     int tick;
     int tick_fall;
     int ticks_per_fall;
+    int ticks_without_kills;
+    int ticks_without_clears;
+    int ticks_without_same_color;
 
     int score;
     int stage;
@@ -171,11 +174,13 @@ void add_log(DrMario *env) {
 
 
 void compute_observations(DrMario *env) {
-    int cells = env->n_rows * env->n_cols;
+    memset(env->observations, 0, env->dim_obs*sizeof(float));
     
+    int cells = env->n_rows * env->n_cols;
+
     float* plane_occupied = env->observations;
     float* plane_viruses = env->observations + cells;
-    float* plane_colors = env->observations + 2*cells;
+    float* plane_colors = env->observations + 2 * cells;
 
     for (int i = 0; i < cells; i++) {
         int cell = env->grid[i];
@@ -254,6 +259,9 @@ void c_reset(DrMario *env) {
     env->score = 0;
     env->tick = 0;
     env->tick_fall = 0;
+    env->ticks_without_kills = 0;
+    env->ticks_without_clears = 0;
+    env->ticks_without_same_color = 0;
 
     env->ticks_per_fall = TICKS_PER_FALL;
     env->viruses_remaining = env->n_init_viruses;
@@ -634,17 +642,20 @@ void spawn_new_cap(DrMario* env) {
     if (color_collisions > 0) {
         env->score += color_collisions*SCORE_PLACE_NEXT_TO_SAME_COLOR;
         env->rewards[0] += color_collisions*REWARD_PLACE_NEXT_TO_SAME_COLOR;
+        env->ticks_without_same_color = 0;
     }
 
     clear_lines(env);
     if (env->viruses_cleared_step > 0) {
         env->rewards[0] += env->viruses_cleared_step*REWARD_KILL_VIRUS;
         env->score += env->viruses_cleared_step*SCORE_KILL_VIRUS;
+        env->ticks_without_kills = 0;
     }
 
     if (env->lines_cleared_step > 0) {
         env->rewards[0] += env->lines_cleared_step*REWARD_CLEAR_LINE;
         env->score += env->lines_cleared_step*SCORE_CLEAR_LINE;
+        env->ticks_without_clears = 0;
     }
 
     if (env->lines_cleared_step == 0 && env->viruses_cleared_step == 0) {
@@ -680,6 +691,9 @@ void c_step(DrMario *env) {
     env->tick += 1;
     env->terminals[0] = 0;
     env->rewards[0] = 0;
+    env->ticks_without_kills += 1;
+    env->ticks_without_clears += 1;
+    env->ticks_without_same_color += 1;
 
     env->lines_cleared_step = 0;
     env->viruses_cleared_step = 0;
@@ -698,6 +712,30 @@ void c_step(DrMario *env) {
     spawn_new_cap(env);
     
     env->episode_return += env->rewards[0];
+
+    if(env->ticks_without_kills >= 250){
+        float fraction_remaining = env->viruses_remaining / (float)env->n_init_viruses;
+        env->rewards[0] -= 1.0f + fraction_remaining*0.5f;
+        env->terminals[0] = 1;
+        add_log(env);
+        c_reset(env);
+    }
+
+    if(env->ticks_without_clears >= 100){
+        float fraction_remaining = env->viruses_remaining / (float)env->n_init_viruses;
+        env->rewards[0] -= 1.0f + fraction_remaining*0.5f;
+        env->terminals[0] = 1;
+        add_log(env);
+        c_reset(env);
+    }
+
+    if(env->ticks_without_same_color >= 50){
+        float fraction_remaining = env->viruses_remaining / (float)env->n_init_viruses;
+        env->rewards[0] -= 1.0f + fraction_remaining*0.5f;
+        env->terminals[0] = 1;
+        add_log(env);
+        c_reset(env);
+    }
 
     compute_observations(env);
 }
@@ -754,6 +792,8 @@ void c_render(DrMario *env) {
 
     DrawText(TextFormat("Viruses: %d", env->viruses_remaining), 4, 4, 14, WHITE);
     DrawText(TextFormat("Score: %d", env->score), 4, 20, 14, WHITE);
+    DrawText(TextFormat("Without clears: %d", env->ticks_without_clears), 4, 36, 14, WHITE);
+    DrawText(TextFormat("Without kills: %d", env->ticks_without_kills), 4, 52, 14, WHITE);
 
     EndDrawing();
 }
